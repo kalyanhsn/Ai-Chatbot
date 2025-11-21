@@ -48,9 +48,12 @@
         async function init() {
             // Try get location (optional, no key needed for basic city/country)
             try {
-                const res = await fetch('https://ipapi.co/json/');
+                 // Now we call our own secure backend!
+                const res = await fetch('/.netlify/functions/location');
                 if(res.ok) userLocation = await res.json();
-            } catch(e) {}
+            } catch(e) { 
+                console.log('Location fetch failed', e); 
+            }
 
             // Load Profile from LocalStorage (Managed by Admin.html)
             let profile = JSON.parse(localStorage.getItem('userProfile'));
