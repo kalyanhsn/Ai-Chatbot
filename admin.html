@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <style>body { font-family: sans-serif; padding: 20px; background: #f4f4f9; } .container { max-width: 800px; margin: 0 auto; } input, textarea, button { width: 100%; padding: 10px; margin-bottom: 10px; } .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; }</style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>🔒 Admin Profile Config</h2>
+            <p>Edit your resume details here. (API Keys are now managed in Netlify Dashboard)</p>
+            
+            <label>Full Name</label><input id="fullName">
+            <label>Role</label><input id="currentRole">
+            <label>Skills</label><textarea id="skills"></textarea>
+            <label>Projects</label><textarea id="projects"></textarea>
+            <label>Education</label><textarea id="education"></textarea>
+            <label>Email</label><input id="email">
+            
+            <button onclick="saveData()" style="background: #667eea; color: white; border: none;">💾 Save Profile</button>
+        </div>
+    </div>
+
+    <script>
+        function loadData() {
+            const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            document.getElementById('fullName').value = profile.fullName || '';
+            document.getElementById('currentRole').value = profile.currentRole || '';
+            document.getElementById('skills').value = profile.skills || '';
+            document.getElementById('projects').value = profile.projects || '';
+            document.getElementById('education').value = profile.education || '';
+            document.getElementById('email').value = profile.email || '';
+        }
+
+        function saveData() {
+            const profile = {
+                fullName: document.getElementById('fullName').value,
+                currentRole: document.getElementById('currentRole').value,
+                experience: "See resume",
+                skills: document.getElementById('skills').value,
+                projects: document.getElementById('projects').value,
+                education: document.getElementById('education').value,
+                email: document.getElementById('email').value
+            };
+            localStorage.setItem('userProfile', JSON.stringify(profile));
+            alert("Profile updated!");
+        }
+        loadData();
+    </script>
+</body>
+</html>

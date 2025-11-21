@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Chatbot</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <style>
+        /* STYLES */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .chat-widget { width: 100%; max-width: 900px; height: 90vh; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; color: white; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; background: #f8f9fa; }
+        .message { margin-bottom: 15px; display: flex; gap: 10px; }
+        .message.user { flex-direction: row-reverse; }
+        .message-content { padding: 12px 18px; border-radius: 15px; max-width: 75%; line-height: 1.5; font-size: 14px; }
+        .message.user .message-content { background: #667eea; color: white; border-bottom-right-radius: 2px; }
+        .message.assistant .message-content { background: white; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-bottom-left-radius: 2px; }
+        .input-area { padding: 20px; background: white; border-top: 1px solid #eee; display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; }
+        button { padding: 10px 25px; background: #667eea; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #764ba2; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .typing { font-style: italic; color: #999; font-size: 12px; margin-left: 50px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="chat-widget">
+        <div class="chat-header">
+            <h2 id="botTitle">AI Assistant</h2>
+            <p style="font-size: 12px; opacity: 0.8;">Ask me about my professional experience</p>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            </div>
+        <div class="typing" id="typingIndicator">AI is typing...</div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Type your question..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button id="sendBtn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        let conversationHistory = [];
+        let sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+        let userLocation = {};
+
+        async function init() {
+            // Try get location (optional, no key needed for basic city/country)
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                if(res.ok) userLocation = await res.json();
+            } catch(e) {}
+
+            // Load Profile from LocalStorage (Managed by Admin.html)
+            let profile = JSON.parse(localStorage.getItem('userProfile'));
+            
+            // Default profile fallback
+            if (!profile) {
+                profile = { fullName: "My Portfolio", currentRole: "Developer", experience: "Loading...", skills: "Loading...", projects: "Loading...", email: "" };
+                addMessage("⚠️ <strong>Note:</strong> Profile not set. Go to /admin.html to configure your resume details.", 'assistant');
+            }
+
+            document.getElementById('botTitle').textContent = `Chat with ${profile.fullName}'s AI`;
+
+            // System Prompt (We send this to the backend, but we don't send the API key!)
+            const systemPrompt = `You are an AI assistant representing ${profile.fullName}, a ${profile.currentRole}.
+            KNOWLEDGE BASE:
+            - Experience: ${profile.experience}
+            - Skills: ${profile.skills}
+            - Education: ${profile.education}
+            - Projects: ${profile.projects}
+            - Contact: ${profile.email}
+            RULES: Answer in first person. Be professional. Keep it concise.`;
+
+            conversationHistory.push({ role: "system", content: systemPrompt });
+            addMessage(`Hi! I am an AI trained on ${profile.fullName}'s portfolio. Ask me anything!`, 'assistant');
+            
+            logSession(); 
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const btn = document.getElementById('sendBtn');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // UI Updates
+            addMessage(message, 'user');
+            input.value = '';
+            btn.disabled = true;
+            document.getElementById('typingIndicator').style.display = 'block';
+
+            conversationHistory.push({ role: "user", content: message });
+            logChat(message, 'user');
+
+            try {
+                // --- THE MAGIC: Call your own Netlify Backend ---
+                const response = await fetch('/.netlify/functions/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({ messages: conversationHistory })
+                });
+
+                if (!response.ok) throw new Error("Backend Error");
+                
+                const data = await response.json();
+                const botReply = data.choices[0].message.content;
+
+                addMessage(botReply, 'assistant');
+                conversationHistory.push({ role: "assistant", content: botReply });
+                logChat(botReply, 'assistant');
+
+            } catch (error) {
+                console.error(error);
+                addMessage("❌ Error: Could not reach the AI server. Please check Netlify logs.", 'assistant');
+            }
+            
+            document.getElementById('typingIndicator').style.display = 'none';
+            document.getElementById('sendBtn').disabled = false;
+        }
+
+        function addMessage(text, role) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerHTML = `<div class="message-content">${role === 'assistant' ? marked.parse(text) : text}</div>`;
+            document.getElementById('chatMessages').appendChild(div);
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+        }
+
+        function logSession() {
+            const logs = JSON.parse(localStorage.getItem('chatLogs') || '[]');
+            if (!logs.find(l => l.sessionId === sessionId)) {
+                logs.push({ sessionId, timestamp: new Date().toISOString(), ip: userLocation.ip || 'Unknown', location: userLocation, messages: [] });
+                localStorage.setItem('chatLogs', JSON.stringify(logs));
+            }
+        }
+
+        function logChat(content, role) {
+            const logs = JSON.parse(localStorage.getItem('chatLogs') || '[]');
+            const sessionIndex = logs.findIndex(l => l.sessionId === sessionId);
+            if (sessionIndex > -1) {
+                logs[sessionIndex].messages.push({ role, content, timestamp: new Date() });
+                localStorage.setItem('chatLogs', JSON.stringify(logs));
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
